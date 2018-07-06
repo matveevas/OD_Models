@@ -60,7 +60,7 @@ spark = SparkSession\
     .getOrCreate()
 
 
-df3 = spark.read.csv("/Users/svetlana.matveeva/Documents/MasterThesis/Dataset/joinresult/part-00000-031f128f-f1e7-49a4-9ec4-84c8cb991c10-c000.csv")
+df3 = spark.read.csv("/Users/svetlana.matveeva/Documents/MasterThesis/Dataset/joinresult/part-00000-24e98f2a-72a0-4feb-9ba2-240d3d2e818a-c000.csv")
 df3.printSchema()
 df3.select("_c2").show()
 df1 = df3.select("_c1", regexp_replace("_c0", "POLYGON [(][(]", "").alias("polygon"), regexp_replace("_c2", "POINT [(]", "").alias("point"), "_c3", "_c4", "_c5")
@@ -77,7 +77,6 @@ dfP = dfCNT.toPandas()
 c = dfP.count()
 print(c)
 print(dfP)
-
 
 res = dfP.describe()
 dfP.hist()
@@ -120,30 +119,37 @@ ax2 = fig.add_subplot(212)
 fig = smt.graphics.tsa.plot_pacf(dfP, lags=25, ax=ax2)
 plt.show()
 
-src_data_model = dfP[:'2017-10-17 02:00:00']
-model = smt.tsa.ARIMA(src_data_model, order=(1, 1, 1)).fit(disp=-1)
+src_data_model = dfP[:'2017-11-30 02:00:00']
+model = smt.tsa.ARIMA(src_data_model['count'], order=(1, 0, 1)).fit(disp=-1)
 print(model.summary())
+plt.plot(dfP['count'])
 
 tsplot(model.resid[24:], lags=30)
 q_test = smt.tsa.stattools.acf(model.resid, qstat=True) #свойство resid, хранит остатки модели, qstat=True, означает что применяем указынный тест к коэф-ам
 print(DataFrame({'Q-stat': q_test[1], 'p-value': q_test[2]}))
 
 # prediction
-pred = model.predict(src_data_model.shape[0], src_data_model.shape[0]+10)
-trn = dfP['2017-10-17 00:00:00':]
-
+pred = model.predict(start=2000, end=2150)
+trn = dfP['2017-11-01 00:00:00':'2017-12-01 00:00:00']
+print(pred)
+pred.plot(figsize=(12, 8), color='red')
+plt.show()
 # r2 = r2_score(trn, pred[1:32])
 # print('R_2= %1.2f' % r2)
 
 # RMSE for ARIMA
-rmse = metrics.rmse(trn, pred[1:32])
-print("RMSE =" % rmse)
+rmse = metrics.rmse(trn, pred)
+print(rmse)
 
-mae = metrics.mae(trn,pred[1:32])
-print("MAE =" % mae)
+# MAE for ARIMA
+mae = metrics.mae(trn,pred)
+print(mae)
 
-pred.plot(style='r--')
-
+fig = plt.figure(figsize=(17, 6))
+plt.plot(dfP['count']['2017-11-20 00:00:00':])
+plt.plot(pred, color='green')
+# plt.plot(trn,color='red')
+plt.show()
 print("here")
 
 
