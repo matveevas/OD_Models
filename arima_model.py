@@ -1,25 +1,7 @@
-
 from __future__ import division
 from __future__ import print_function
 from pyspark.sql import SparkSession
 
-
-
-
-import os
-import sys
-
-from sklearn.utils import check_X_y
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-
-from pyod.models.ocsvm import OCSVM
-from pyod.utils.data import generate_data
-from pyod.utils.data import get_color_codes
-from pyod.utils.data import evaluate_print
-
-import re
-from pyspark.sql.functions import UserDefinedFunction
 from pyspark.sql.functions import *
 import statsmodels.api as smt
 import pandas as pd
@@ -29,41 +11,9 @@ import matplotlib.pyplot as plt
 from statsmodels.graphics.tsaplots import *
 from sklearn.metrics import r2_score
 import ml_metrics as metrics
+import itertools
+import scipy.stats as scs
 
-
-def arima(dfP):
-    dfn = dfP['count']
-    dfn.plot(figsize=(12, 6))
-    desc = df.describe()
-    dfn.hist()
-
-    test = smt.tsa.adfuller(dfn)
-    print('adf: ', test[0])
-    print('p-value: ', test[1])
-    print('Critical values: ', test[4])
-    if test[0] > test[4]['5%']:
-        print('есть единичные корни, ряд не стационарен')
-    else:
-        print('единичных корней нет, ряд стационарен')
-
-    src_data_model = dfn[:'2017-11-01 02:00:00']
-    model = smt.tsa.ARIMA(src_data_model, order=(1, 0, 1)).fit(disp=-1)
-
-    print(model.summary())
-
-    q_test = smt.tsa.stattools.acf(model.resid, qstat=True) #свойство resid, хранит остатки модели
-                                                                #qstat=True, означает что применяем указынный тест к коэф-ам
-    print(DataFrame({'Q-stat1':q_test[1], 'p-value1': q_test[2]}))
-
-    pred = model.predict(start=50, end=60)
-    trn = dfn['2017-11-02 02:00:00':]
-
-    # metrics.rmse(trn, pred[1:32])
-    # metrics.mae(trn, pred[1:32])
-
-    dfn.plot(figsize=(12, 6))
-    pred.plot(style='r--')
-    return
 
 def tsplot(y, lags=None, figsize=(12, 7), style='bmh'):
     if not isinstance(y, pd.Series):
@@ -82,10 +32,9 @@ def tsplot(y, lags=None, figsize=(12, 7), style='bmh'):
 
 
         print("Критерий Дики-Фуллера: p=%f" % smt.tsa.stattools.adfuller(y,)[1])
-
+        # print("Критерий Дики-Фуллера: p=%f" % smt.tsa.stattools.adfuller(y, )[2])
         plt.tight_layout()
     return
-
 
 spark = SparkSession\
     .builder\
@@ -93,68 +42,99 @@ spark = SparkSession\
     .config("spark.some.config.option", "some-value")\
     .getOrCreate()
 
-
 df3 = spark.read.csv("/Users/svetlana.matveeva/Documents/MasterThesis/Dataset/joinresult/part-00000-3a94d824-4491-4a1a-b650-e61bd752ed5a-c000.csv")
 df3.printSchema()
-df3.select("_c2").show()
 df1 = df3.select("_c1", regexp_replace("_c0", "POLYGON [(][(]", "").alias("polygon"), regexp_replace("_c2", "POINT [(]", "").alias("point"), "_c3", "_c4", "_c5")
 df2 = df1.select("_c1", regexp_replace("polygon", "[)][)]", "").alias("polygon"), regexp_replace("point", "[)]", "").alias("point"), "_c3", "_c4", "_c5")
 df = df2.withColumnRenamed("_c1", "polygonID").withColumnRenamed("_c3", "pointID").withColumnRenamed("_c4", "addresstext").withColumnRenamed("_c5", "createddatetime")
 df.createTempView("df")
 dfCNT = spark.sql("select count(pointID) as count, createddatetime from df  group by  createddatetime  order by createddatetime")
 dfPCNT = spark.sql("select count(pointID) as count, polygonID from df group by  polygonID ")
-# dfPCNT.show(50)
-# "polygonID", "creteddatetime"
-# dfCNT = spark.sql("select cast(count(pointID) as Int) as count from df")
-# dfCNT.collect()
-dfCNT.show(50)
-dfCNT.collect()
 dfP = dfCNT.toPandas()
-# spark.conf.set("spark.sql.execution.arrow.enabled", "true")
-c = dfP.count()
-print(c)
 print(dfP)
 
+# histograma and description
 res = dfP.describe()
 dfP.hist()
 
 dfP.createddatetime = pd.to_datetime(dfP['createddatetime'], format='%Y-%m-%d')
 dfP.set_index(['createddatetime'], inplace=True)
-dfP = dfP.resample('H').mean().bfill()
+dfP = dfP.resample('D').mean().bfill()
 dfP.plot(figsize=(12, 6))
-
-# dfPdiff = dfP.diff(periods=1).dropna()
-# print(dfPdiff)
-# series1 = pd.Series(dfPdiff['count'])
-
 plt.show()
 
-# s = pd.Series()
-# for row in dfP.iterrows():
-#     s.append(row)
-# series = dfP.iloc[1, :]
+# dfPdiff= dfP.diff(periods=30).dropna()
+series = pd.Series(dfP['count'])
+# tsplot(series, lags=30)
 
+def double_exponential_smoothing(series, alpha, beta):
+    result = [series[0]]
+    for n in range(1, len(series)+1):
+        if n == 1:
+            level, trend = series[0], series[1] - series[0]
+        if n >= len(series): # прогнозируем
+            value = result[-1]
+        else:
+            value = series[n]
+        last_level, level = level, alpha*value + (1-alpha)*(level+trend)
+        trend = beta*(level-last_level) + (1-beta)*trend
+        result.append(level+trend)
+    return result
 
+tsplot(series, lags=30)
+print(type(series))
 
-# tsplot(series, lags=2)
+def invboxcox(y,lmbda):
+    # обратное преобразование Бокса-Кокса
+    if lmbda == 0:
+        return(np.exp(y))
+    else:
+        return(np.exp(np.log(lmbda*y+1)/lmbda))
 
-dfPdiff= dfP.diff(periods=1).dropna()
-series1 = pd.Series(dfPdiff['count'])
+data = dfP.copy()
+print(type(data))
+data["Box"], lmbda = scs.boxcox(data) # прибавляем единицу, так как в исходном ряде есть нули
+tsplot(data.Box, lags=30)
+print("Оптимальный параметр преобразования Бокса-Кокса: %f" % lmbda)
+print(data)
+print(type(data))
+# data["Shift"] = data.Box - data.Box.shift
+dfPdiff= data.diff(periods=1).dropna()
+series1 = pd.Series(data.Box)
 tsplot(series1, lags=2)
+# alpha = 0.09
+# beta = 0.9
+# exp = double_exponential_smoothing(series, alpha, beta)
+plt.figure(figsize=(20, 8))
+plt.plot(series1)
+plt.plot(series, label='Actual')
+plt.show()
+tsplot(series1, lags=30)
+
+
+
 
 fig = plt.figure(figsize=(12,8))
 ax1 = fig.add_subplot(211)
-fig = smt.graphics.tsa.plot_acf(dfP.values.squeeze(), lags=25, ax=ax1)
+# fig = smt.graphics.tsa.plot_acf(series.values.squeeze(), lags=30, ax=ax1)
+fig = smt.graphics.tsa.plot_acf(series1, lags=30, ax=ax1)
 ax2 = fig.add_subplot(212)
-fig = smt.graphics.tsa.plot_pacf(dfP, lags=25, ax=ax2)
+fig = smt.graphics.tsa.plot_pacf(series1, lags=25, ax=ax2)
 plt.show()
 
-src_data_model = dfP[:'2017-11-01 00:00:00']
+p = data.drop('count', axis=1)
+# p.createddatetime = pd.to_datetime(p['createddatetime'], format='%Y-%m-%d')
+# p.set_index(['createddatetime'], inplace=True)
+print(p)
+print(type(p))
+
+src_data_model = p[:'2017-11-01 00:00:00']
 print(src_data_model)
 # src_data_model.index = pd.to_datetime(src_data_model.index)
-model = smt.tsa.ARIMA(src_data_model['count'], order=(1, 0, 1), freq='H').fit(disp=-1)
+model = smt.tsa.ARIMA(src_data_model['Box'], order=(1, 0, 1), freq='D').fit(disp=-1)
 print(model.summary())
-plt.plot(dfP['count'])
+plt.plot(p['Box'])
+# plt.plot(dfP['count'])
 
 tsplot(model.resid[24:], lags=30)
 q_test = smt.tsa.stattools.acf(model.resid, qstat=True) #свойство resid, хранит остатки модели, qstat=True, означает что применяем указынный тест к коэф-ам
@@ -163,7 +143,7 @@ print(DataFrame({'Q-stat': q_test[1], 'p-value': q_test[2]}))
 # prediction
 # pred = model.predict(start=src_data_model.shape[0], end=src_data_model.shape[0]+100)
 pred = model.predict(start='2017-10-01 00:00:00', end='2017-11-02 00:00:00')
-trn = dfP['2017-10-01 00:00:00':'2017-11-02 00:00:00']
+trn = p['2017-10-01 00:00:00':'2017-11-02 00:00:00']
 print(pred)
 # pred.plot(figsize=(12, 8), color='red')
 plt.show()
@@ -179,12 +159,10 @@ mae = metrics.mae(trn,pred)
 print(mae)
 
 fig = plt.figure(figsize=(17, 6))
-plt.plot(dfP['count']['2017-10-01 00:00:00':'2017-11-02 00:00:00'])
+plt.plot(p['Box']['2017-10-01 00:00:00':'2017-11-02 00:00:00'])
 plt.plot(pred, color='green')
 # plt.plot(trn,color='red')
 plt.show()
 print("here")
 
 arima(dfP)
-
-
