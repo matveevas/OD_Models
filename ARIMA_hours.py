@@ -42,7 +42,7 @@ spark = SparkSession\
     .config("spark.some.config.option", "some-value")\
     .getOrCreate()
 
-df3 = spark.read.csv("/Users/svetlana.matveeva/Documents/MasterThesis/Dataset/joinresult/part-00000-3a94d824-4491-4a1a-b650-e61bd752ed5a-c000.csv")
+df3 = spark.read.csv("/Users/svetlana.matveeva/Documents/MasterThesis/Dataset/joinresult/sufferershour.csv")
 df3.printSchema()
 df1 = df3.select("_c1", regexp_replace("_c0", "POLYGON [(][(]", "").alias("polygon"), regexp_replace("_c2", "POINT [(]", "").alias("point"), "_c3", "_c4", "_c5")
 df2 = df1.select("_c1", regexp_replace("polygon", "[)][)]", "").alias("polygon"), regexp_replace("point", "[)]", "").alias("point"), "_c3", "_c4", "_c5")
@@ -59,7 +59,7 @@ dfP.hist()
 
 dfP.createddatetime = pd.to_datetime(dfP['createddatetime'], format='%Y-%m-%d')
 dfP.set_index(['createddatetime'], inplace=True)
-dfP = dfP.resample('D').mean().bfill()
+dfP = dfP.resample('H').mean().bfill()
 dfP.plot(figsize=(12, 6))
 plt.show()
 
@@ -132,7 +132,7 @@ print(type(p))
 src_data_model = p[:'2017-11-01 00:00:00']
 print(src_data_model)
 # src_data_model.index = pd.to_datetime(src_data_model.index)
-model = smt.tsa.ARIMA(src_data_model['Box'], order=(1, 0, 1), freq='D').fit(disp=-1)
+model = smt.tsa.ARIMA(src_data_model['Box'], order=(1, 0, 1), freq='H').fit(disp=-1)
 print(model.summary())
 plt.plot(p['Box'])
 # plt.plot(dfP['count'])
@@ -143,8 +143,8 @@ print(DataFrame({'Q-stat': q_test[1], 'p-value': q_test[2]}))
 
 # prediction
 # pred = model.predict(start=src_data_model.shape[0], end=src_data_model.shape[0]+100)
-pred = model.predict(start='2017-10-01 00:00:00', end='2017-11-02 00:00:00')
-trn = p['2017-10-01 00:00:00':'2017-11-02 00:00:00']
+pred = model.predict(start='2017-10-20 00:00:00', end='2017-10-30 00:00:00')
+trn = p['2017-10-20 00:00:00':'2017-10-30 00:00:00']
 print(pred)
 # pred.plot(figsize=(12, 8), color='red')
 plt.show()
@@ -160,7 +160,7 @@ mae = metrics.mae(trn,pred)
 print(mae)
 
 fig = plt.figure(figsize=(17, 6))
-plt.plot(p['Box']['2017-10-01 00:00:00':'2017-11-02 00:00:00'])
+plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'])
 plt.plot(pred, color='green')
 # plt.plot(trn,color='red')
 plt.show()
