@@ -120,7 +120,7 @@ dfP.hist()
 
 dfP.createddatetime = pd.to_datetime(dfP['createddatetime'], format='%Y-%m-%d')
 dfP.set_index(['createddatetime'], inplace=True)
-dfP = dfP.resample('H').mean().bfill()
+dfP = dfP.resample('D').mean().bfill()
 dfP.plot(figsize=(12, 6))
 
 # dfPdiff = dfP.diff(periods=1).dropna()
@@ -149,12 +149,12 @@ ax2 = fig.add_subplot(212)
 fig = smt.graphics.tsa.plot_pacf(dfP, lags=25, ax=ax2)
 plt.show()
 
-src_data_model = dfP[:'2017-11-01 00:00:00']
+src_data_model = dfPdiff[:'2017-11-01 00:00:00']
 print(src_data_model)
 # src_data_model.index = pd.to_datetime(src_data_model.index)
-model = smt.tsa.ARIMA(src_data_model['count'], order=(1, 0, 1), freq='H').fit(disp=-1)
+model = smt.tsa.ARIMA(src_data_model['count'], order=(1, 0, 1), freq='D').fit(disp=-1)
 print(model.summary())
-plt.plot(dfP['count'])
+plt.plot(dfPdiff['count'])
 
 tsplot(model.resid[24:], lags=30)
 q_test = smt.tsa.stattools.acf(model.resid, qstat=True) #свойство resid, хранит остатки модели, qstat=True, означает что применяем указынный тест к коэф-ам
@@ -163,7 +163,7 @@ print(DataFrame({'Q-stat': q_test[1], 'p-value': q_test[2]}))
 # prediction
 # pred = model.predict(start=src_data_model.shape[0], end=src_data_model.shape[0]+100)
 pred = model.predict(start='2017-10-01 00:00:00', end='2017-11-02 00:00:00')
-trn = dfP['2017-10-01 00:00:00':'2017-11-02 00:00:00']
+trn = dfPdiff['2017-10-01 00:00:00':'2017-11-02 00:00:00']
 print(pred)
 # pred.plot(figsize=(12, 8), color='red')
 plt.show()
@@ -179,7 +179,7 @@ mae = metrics.mae(trn,pred)
 print(mae)
 
 fig = plt.figure(figsize=(17, 6))
-plt.plot(dfP['count']['2017-10-01 00:00:00':'2017-11-02 00:00:00'])
+plt.plot(dfPdiff['count']['2017-10-01 00:00:00':'2017-11-02 00:00:00'])
 plt.plot(pred, color='green')
 # plt.plot(trn,color='red')
 plt.show()
