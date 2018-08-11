@@ -3,31 +3,11 @@ from __future__ import division
 from __future__ import print_function
 from pyspark.sql import SparkSession
 
-
-
-
-import os
-import sys
-
-from sklearn.utils import check_X_y
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-
-from pyod.models.ocsvm import OCSVM
-from pyod.utils.data import generate_data
-from pyod.utils.data import get_color_codes
-from pyod.utils.data import evaluate_print
-
-import re
-from pyspark.sql.functions import UserDefinedFunction
 from pyspark.sql.functions import *
 import statsmodels.api as smt
 import pandas as pd
 from pandas import DataFrame
-import pyarrow
 import matplotlib.pyplot as plt
-from statsmodels.graphics.tsaplots import *
-from sklearn.metrics import r2_score
 import ml_metrics as metrics
 
 

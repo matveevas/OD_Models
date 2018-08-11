@@ -6,7 +6,6 @@ from pyspark.sql.functions import *
 import statsmodels.api as smt
 import pandas as pd
 from pandas import DataFrame
-import pyarrow
 import matplotlib.pyplot as plt
 from statsmodels.graphics.tsaplots import *
 from sklearn.metrics import r2_score
@@ -51,7 +50,7 @@ df.createTempView("df")
 dfCNT = spark.sql("select count(pointID) as count, createddatetime from df  group by  createddatetime  order by createddatetime")
 dfPCNT = spark.sql("select count(pointID) as count, polygonID from df group by  polygonID ")
 dfP = dfCNT.toPandas()
-print(dfP)
+
 
 # histograma and description
 res = dfP.describe()
@@ -96,7 +95,6 @@ print(type(data))
 data["Box"], lmbda = scs.boxcox(data) # прибавляем единицу, так как в исходном ряде есть нули
 tsplot(data.Box, lags=30)
 print("Оптимальный параметр преобразования Бокса-Кокса: %f" % lmbda)
-print(data)
 print(type(data))
 # data["Shift"] = data.Box - data.Box.shift
 dfPdiff= data.diff(periods=1).dropna()
@@ -110,7 +108,6 @@ plt.plot(series1)
 plt.plot(series, label='Actual')
 plt.show()
 tsplot(series1, lags=30)
-
 
 
 
@@ -132,7 +129,7 @@ print(type(p))
 src_data_model = p[:'2017-11-01 00:00:00']
 print(src_data_model)
 # src_data_model.index = pd.to_datetime(src_data_model.index)
-model = smt.tsa.ARIMA(src_data_model['Box'], order=(1, 0, 1), freq='H').fit(disp=-1)
+model = smt.tsa.ARIMA(src_data_model['Box'], order=(1, 0, 0), freq='H').fit(disp=-1)
 print(model.summary())
 plt.plot(p['Box'])
 # plt.plot(dfP['count'])
@@ -154,14 +151,35 @@ plt.show()
 # RMSE for ARIMA
 rmse = metrics.rmse(trn, pred)
 print(rmse)
+print(type(rmse))
 
 # MAE for ARIMA
 mae = metrics.mae(trn,pred)
 print(mae)
 
+scale = 0.1
+deviation = float(rmse)
+lower = pred - deviation*scale
+np.float64(lower)
+# print("lower =" , str(lower))
+print(type(lower))
+print(type(p))
+print( type(pred))
+
+Anomalies1 = np.array([np.NaN]*len(p))
+Anomalies = pd.Series(Anomalies1)
+pser = pd.Series(p)
+
+Anomalies[pser.sort_index(axis=1)>lower.sort_index(axis=1)]
+print(Anomalies)
+# Anomalies[data.values<model.LowerBond] = data.values[data.values<model.LowerBond]
+
 fig = plt.figure(figsize=(17, 6))
-plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'])
-plt.plot(pred, color='green')
+plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'], label='data')
+plt.plot(pred, color='green', label='prediction')
+plt.plot(Anomalies, "ro", markersize=10)
+plt.legend(loc="best")
+plt.title("ARIMA model prediction ")
 # plt.plot(trn,color='red')
 plt.show()
 print("here")
