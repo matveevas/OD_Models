@@ -140,8 +140,8 @@ print(DataFrame({'Q-stat': q_test[1], 'p-value': q_test[2]}))
 
 # prediction
 # pred = model.predict(start=src_data_model.shape[0], end=src_data_model.shape[0]+100)
-pred = model.predict(start='2017-10-20 00:00:00', end='2017-10-30 00:00:00')
-trn = p['2017-10-20 00:00:00':'2017-10-30 00:00:00']
+pred = model.predict(start='2017-10-25 00:00:00', end='2017-10-30 00:00:00')
+trn = p['2017-10-25 00:00:00':'2017-10-30 00:00:00']
 print(pred)
 # pred.plot(figsize=(12, 8), color='red')
 plt.show()
@@ -157,31 +157,62 @@ print(type(rmse))
 mae = metrics.mae(trn,pred)
 print(mae)
 
-scale = 0.1
+scale = 1
 deviation = float(rmse)
 lower = pred - deviation*scale
-np.float64(lower)
-# print("lower =" , str(lower))
-print(type(lower))
-print(type(p))
+lowerDF = pd.DataFrame({'Box':lower.values}, index=lower.index )
+print(lowerDF)
+lower_arr=lowerDF.as_matrix().squeeze()
+p_arr=p.loc[lowerDF.index].as_matrix().squeeze()
+pred_arr = pred.loc[lowerDF.index].as_matrix().squeeze()
+print(p_arr)
+print(pred_arr)
+#lowerDF.index = p.index
+print("lower =", type(lower_arr))
+print(lower_arr)
+print(type(p_arr))
+print(p_arr, len(p_arr), len(lower_arr))
 print( type(pred))
 
-Anomalies1 = np.array([np.NaN]*len(p))
-Anomalies = pd.Series(Anomalies1)
-pser = pd.Series(p)
+upper = pred + deviation*scale
+upperDF = pd.DataFrame({'Box':upper.values}, index=upper.index )
+upper_arr=upperDF.as_matrix().squeeze()
 
-Anomalies[pser.sort_index(axis=1)>lower.sort_index(axis=1)]
-print(Anomalies)
+Anomalies = np.array([np.NaN]*len(p_arr))
+#Anomalies = pd.Series(Anomalies1)
+pser = pd.Series(p)
+#Anomalies[y_test<lower] = y_test[y_test<lower]
+Anomalies[p_arr < lower_arr] = p_arr[p_arr < lower_arr]
+
+Anomalies1 = np.array([np.NaN]*len(p_arr))
+Anomalies1[p_arr > upper_arr] = p_arr[p_arr > upper_arr]
 # Anomalies[data.values<model.LowerBond] = data.values[data.values<model.LowerBond]
 
 fig = plt.figure(figsize=(17, 6))
-plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'], label='data')
-plt.plot(pred, color='green', label='prediction')
+#plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'], label='data')
+plt.plot(list(p_arr), label='data')
+plt.plot(list(pred_arr), "green",label='pred')
+# plt.plot(pred, color='green', label='prediction')
+plt.plot(lower_arr, "r--", label="upper bond / lower bond")
+plt.plot(upper_arr, "r--")
+#plt.plot(pred, color='green', label='prediction')
 plt.plot(Anomalies, "ro", markersize=10)
+plt.plot(Anomalies1, "ro", markersize=10)
 plt.legend(loc="best")
+plt.axis('tight')
 plt.title("ARIMA model prediction ")
 # plt.plot(trn,color='red')
+plt.legend()
 plt.show()
-print("here")
+
+# fig = plt.figure(figsize=(17, 6))
+# plt.plot(p['Box']['2017-10-20 00:00:00':'2017-10-30 00:00:00'], label='data')
+# plt.plot(pred, color='green', label='prediction')
+# plt.plot(Anomalies, "ro", markersize=10)
+# plt.legend(loc="best")
+# plt.title("ARIMA model prediction ")
+# # plt.plot(trn,color='red')
+# plt.show()
+# print("here")
 
 
